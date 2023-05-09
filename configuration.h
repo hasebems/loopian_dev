@@ -17,11 +17,12 @@
 #define   SETUP_MODE    0   //  1: Setup Mode, 0: Normal Mode
 
 #define   MAX_DEVICE_MBR3110    6
-
+#define   MAX_TOUCH_EV          8
+#define   MAX_EACH_SENS         8
 //---------------------------------------------------------
 //		I2C Device Configuration
 //---------------------------------------------------------
-//#define		USE_CY8CMBR3110  // とりあえずまだ off
+#define		USE_CY8CMBR3110  // とりあえずまだ off
 #define		USE_ADA88
 //#define		USE_LPS22HB
 //#define		USE_LPS25H

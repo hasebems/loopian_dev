@@ -1,27 +1,18 @@
 /* ========================================
  *
  *  TouchMIDI Common Platform for AVR
- *  TouchMIDI_AVR_if.h
- *    description: TouchMidi Interface Functions 
+ *  global_timer.h
+ *    description: Global Timer Functions 
  *
  *  Copyright(c)2019- Masahiko Hasebe at Kigakudoh
  *  This software is released under the MIT License, see LICENSE.txt
  *
  * ========================================
  */
-#ifndef LOOPIAN_DEV_H
-#define LOOPIAN_DEV_H
+#ifndef GLOBAL_TIMER_H
+#define GLOBAL_TIMER_H
  
 #include <Arduino.h>
-
-int analogDataRead( void );
-void setAda88_Number( int );
-void setMidiBuffer( uint8_t dt0, uint8_t dt1, uint8_t dt2 );
-
-//  for NeoPixel
-uint8_t colorTbl( uint8_t index, uint8_t rgb );
-void setLed( int ledNum, uint8_t red, uint8_t green, uint8_t blue );
-void lightLed( void );
 
 const int MINIMUM_RESOLUTION = 2; // 2msec
 

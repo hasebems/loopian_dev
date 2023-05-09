@@ -171,7 +171,7 @@ static const unsigned char CAP_SENSE_ADDRESS_12 = 0x43;
 //
 /*----------------------------------------------------------------------------*/
 // wide range small resolution
-static const unsigned char tCY8CMBR3110_ConfigData[MAX_DEVICE_MBR3110][CONFIG_DATA_SZ] PROGMEM = {
+static const unsigned char tCY8CMBR3110_ConfigData[][CONFIG_DATA_SZ] PROGMEM = {
 {
 /* Project: C:\Users\hasebems\Documents\Cypress Projects\Design0602\Design0602.cprj
  * Generated: 2019/06/02 6:52:53 +09:00 */
@@ -414,7 +414,7 @@ static const unsigned char tCY8CMBR3110_ConfigData[MAX_DEVICE_MBR3110][CONFIG_DA
 }
 };
 //-------------------------------------------------------------------------
-static const unsigned char tI2cAdrs[MAX_DEVICE_MBR3110] =
+static const unsigned char tI2cAdrs[] =
 {
   CAP_SENSE_ADDRESS_1,
   CAP_SENSE_ADDRESS_2,
