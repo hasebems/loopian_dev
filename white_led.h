@@ -26,6 +26,7 @@ public:
   WhiteLed(void): _total_time(0), _light_lvl() {}
   int gen_lighting_in_loop(long difftm, int (&tchev)[MAX_TOUCH_EV]);
   void one_kamaboco(int kamanum);
+  void light_led_each(int num, uint16_t count);
 private:
   void light_led(int num, int which, uint16_t count);
 };

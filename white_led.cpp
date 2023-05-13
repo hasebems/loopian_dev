@@ -52,18 +52,21 @@ void WhiteLed::one_kamaboco(int kamanum)
     }
     else {
       // 背景で薄く光っている
-      int ptn = (time+(4*i))%64 ;
+      int ptn = (time+(4*i))%64;
       ptn = ptn<32? ptn:64-ptn;
       light_led(i, kamanum, ptn);
     }
   }
 }
-void WhiteLed::light_led(int num, int which, uint16_t count){ // count=0-4095
+void WhiteLed::light_led(int num, int which, uint16_t strength){ // strength=0-4095
+  pca9544_changeI2cBus(3,which);
+  light_led_each(num, strength);
+}
+void WhiteLed::light_led_each(int num, uint16_t strength){ // strength=0-4095
   int err;
   uint8_t adrs = num * 4 + 0x06;
-  pca9544_changeI2cBus(3,which);
 	err = PCA9685_write( 0, adrs, 0 );          // ONはtime=0
 	err = PCA9685_write( 0, adrs+1, 0 );        // ONはtime=0
-	err = PCA9685_write( 0, adrs+2, (uint8_t)(count & 0x00ff) );// OFF 0-4095 (0-0x0fff) の下位8bit
-	err = PCA9685_write( 0, adrs+3, (uint8_t)(count>>8) );      // OFF 上位4bit
+	err = PCA9685_write( 0, adrs+2, (uint8_t)(strength & 0x00ff) );// OFF 0-4095 (0-0x0fff) の下位8bit
+	err = PCA9685_write( 0, adrs+3, (uint8_t)(strength>>8) );      // OFF 上位4bit
 }
