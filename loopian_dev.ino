@@ -13,6 +13,8 @@
 
 #include  <Arduino.h>
 #include  <MsTimer2.h>
+#include  <MIDI.h>
+#include  <MIDIUSB.h>
 
 #include  "i2cdevice.h"
 #include  "global_timer.h"
@@ -53,6 +55,8 @@ struct TouchEvent {
 /*----------------------------------------------------------------------------*/
 //     Variables
 /*----------------------------------------------------------------------------*/
+MIDI_CREATE_DEFAULT_INSTANCE();
+
 constexpr int HOLD_TIME = 10;  // *10msec この間、一度でもonならonとする。離す時少し鈍感にする。最大16
 
 int counter = 0;
@@ -71,6 +75,16 @@ int holdtime_cnt = 0;
 /*----------------------------------------------------------------------------*/
 void setup()
 {
+  //+++++++++++++++++++++++++++++++++
+  //  MIDI settings
+  MIDI.setHandleNoteOff(handlerNoteOff);
+  MIDI.setHandleNoteOn(handlerNoteOn);
+  MIDI.setHandleControlChange(handlerCC);
+  MIDI.begin();
+  MIDI.turnThruOff();
+
+  //+++++++++++++++++++++++++++++++++
+  //  I2C/device settings
   wireBegin();   // Join I2C bus
   pca9544_changeI2cBus(3,0);
   PCA9685_init(0);
@@ -157,6 +171,9 @@ void setup()
 void loop() {
   //  Global Timer 
   long difftm = generateTimer();
+
+  //  MIDI Receive
+  receiveMidi();
 
   if ( gt.timer10msecEvent() ){
     // check active
@@ -305,7 +322,61 @@ void interporate_location(long difftm)
   }
 }
 /*----------------------------------------------------------------------------*/
+//     MIDI Out
+/*----------------------------------------------------------------------------*/
+void setMidiNoteOn( uint8_t note, uint8_t vel )
+{
+  //MIDI.sendNoteOn(note, vel, 1);
+  midiEventPacket_t event = {0x09, 0x90, note, vel};
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
+}
+/*----------------------------------------------------------------------------*/
+void setMidiNoteOff( uint8_t note, uint8_t vel )
+{
+  //MIDI.sendNoteOff(note, vel, 1);
+  midiEventPacket_t event = {0x09, 0x90, note, 0};
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
+}
+/*----------------------------------------------------------------------------*/
+void setMidiControlChange( uint8_t controller, uint8_t value )
+{
+  //MIDI.sendControlChange(controller, value, 1);
+  midiEventPacket_t event = {0x0b, 0xb0, controller, value};
+  MidiUSB.sendMIDI(event);
+  MidiUSB.flush();
+}
+/*----------------------------------------------------------------------------*/
 //     generate midi event
 /*----------------------------------------------------------------------------*/
 void generate_midi(int locate){}
 
+/*----------------------------------------------------------------------------*/
+//      Serial MIDI In
+/*----------------------------------------------------------------------------*/
+void receiveMidi(void){
+  MIDI.read();
+  // midiEventPacket_t rx = MIDIUSB.read();
+}
+/*----------------------------------------------------------------------------*/
+void handlerNoteOn(byte channel , byte note , byte vel)
+{
+  if (channel == 1){
+    //tchkbd.makeKeySwEvent(note, true, vel);
+  }
+}
+/*----------------------------------------------------------------------------*/
+void handlerNoteOff(byte channel , byte note , byte vel)
+{
+  if (channel == 1){
+    //tchkbd.makeKeySwEvent(note, false, vel);
+  }
+}
+/*----------------------------------------------------------------------------*/
+void handlerCC(byte channel , byte number , byte value)
+{
+  if (channel == 1){
+    setMidiControlChange(number, value);
+  }
+}
