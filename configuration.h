@@ -14,7 +14,10 @@
 //---------------------------------------------------------
 //    Touch Sensor Setup Mode
 //---------------------------------------------------------
-#define   SETUP_MODE    0   //  1: Setup Mode, 0: Normal Mode
+#define   SETUP_MODE    0   //  1: Setup Mode,
+                            //      基板を一枚ずつ Setup, Check するモード
+                            //      Control基板のI2C端子を、LED/Sensor基板と直結する
+                            //  0: Normal Mode
 
 #define   MAX_DEVICE_MBR3110    6
 #define   MAX_TOUCH_EV          8
