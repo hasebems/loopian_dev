@@ -1,5 +1,0 @@
-{
-    "board": "arduino:avr:leonardo",
-    "programmer": "arduino:arduinoasispatmega32u4",
-    "sketch": "loopian_dev.ino"
-}
