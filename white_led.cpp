@@ -15,11 +15,22 @@
 /*----------------------------------------------------------------------------*/
 //     White LED Control
 /*----------------------------------------------------------------------------*/
+void WhiteLed::clear_all(void)
+{
+  for (int j=0; j<MAX_DEVICE_MBR3110; j++){
+    pca9544_changeI2cBus(3,j);
+    for (int i=0; i<MAX_EACH_LIGHT; i++){
+      light_led_each(i, 0);
+    }
+    pca9544_changeI2cBus(1,j);
+  }
+}
 int WhiteLed::gen_lighting_in_loop(long difftm, int (&tchev)[MAX_TOUCH_EV])
 {
   _total_time += difftm;
 
-  for (int x=0; x<MAX_EACH_LIGHT*MAX_DEVICE_MBR3110; x++){_light_lvl[x]=0;}
+  //for (int x=0; x<MAX_EACH_LIGHT*MAX_DEVICE_MBR3110; x++){_light_lvl[x]=0;}
+  memset(&_light_lvl[0], 0, sizeof(int)*MAX_EACH_LIGHT*MAX_DEVICE_MBR3110);
 
   // tchev : 0-1599 + 1600*kamanum で絶対位置が表現され、イベントごとにその数値が入力される
   int max_ev = 0;
@@ -37,30 +48,29 @@ int WhiteLed::gen_lighting_in_loop(long difftm, int (&tchev)[MAX_TOUCH_EV])
     max_ev += 1;
   }
 
-  //for (int j=0; j<MAX_DEVICE_MBR3110; j++){one_kamaboco(j);}
-  one_kamaboco(0);
+  for (int j=0; j<MAX_DEVICE_MBR3110; j++){one_kamaboco(j);}
   return max_ev;
 }
 void WhiteLed::one_kamaboco(int kamanum)
 {
   uint16_t time = static_cast<uint16_t>(_total_time/5);
+  const int offset_num = kamanum*MAX_EACH_LIGHT;
+  pca9544_changeI2cBus(3,kamanum);
+
   for (int i=0; i<MAX_EACH_LIGHT; i++){
-    if (_light_lvl[i+kamanum*MAX_EACH_LIGHT] > 0){
-      int strength = 20*_light_lvl[i+kamanum*MAX_EACH_LIGHT];
+    if (_light_lvl[i+offset_num] > 0){
+      int strength = 20*_light_lvl[i+offset_num];
       if (strength > 4000){strength = 4000;}
-      light_led(i, kamanum, strength);
+      light_led_each(i, strength);
     }
     else {
       // 背景で薄く光っている
       int ptn = (time+(4*i))%64;
       ptn = ptn<32? ptn:64-ptn;
-      light_led(i, kamanum, ptn);
+      light_led_each(i, ptn);
     }
   }
-}
-void WhiteLed::light_led(int num, int which, uint16_t strength){ // strength=0-4095
-  pca9544_changeI2cBus(3,which);
-  light_led_each(num, strength);
+  pca9544_changeI2cBus(1,kamanum); // 別のI2Cバスに変えないと、他のkamanumのときに上書きされてしまう
 }
 void WhiteLed::light_led_each(int num, uint16_t strength){ // strength=0-4095
   int err;

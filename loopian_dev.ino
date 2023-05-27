@@ -73,6 +73,60 @@ uint16_t sw[MAX_DEVICE_MBR3110][MAX_EACH_SENS] = {0};
 int holdtime_cnt = 0; // 指を離したときの感度を弱めに（反応を遅めに）にするためのカウンタ
 
 /*----------------------------------------------------------------------------*/
+//     CY8CMBR3110 setup mode / check White LED
+/*----------------------------------------------------------------------------*/
+void setup_MBR3110(void)
+{
+  int err;
+  int j1_7_sw = digitalRead(SETUP_MODE);
+
+  //  Check White LED
+  if (!j1_7_sw){
+    ada88_write(2);//"B"
+    delay(200);
+    for(int f=0; f<MAX_EACH_LIGHT; f++){wled.light_led_each(f,0);}
+    digitalWrite(LED_ALL_ON, LOW);  //  All White LED available
+    while(1){
+      for(int l=0; l<2; l++){
+        for(int e=0; e<MAX_EACH_LIGHT; e++){
+          uint16_t bright = (e%2)==0?l:(l+1)%2;
+          wled.light_led_each(e,bright*200);
+        }
+        delay(200);
+      }
+    }
+  }
+
+  // CapSense Setup Mode
+  bool sup_ok = false;
+  ada88_write(21);//"SU"
+  for (int i=0; i<MAX_DEVICE_MBR3110; ++i){
+    pca9544_changeI2cBus(0,i);
+    err = MBR3110_setup(i);
+    if (err){
+      digitalWrite(LED_ERR, LOW); // turn on
+    }
+    else{
+      ada88_write(22); // "Ok"
+      sup_ok = true;
+      break;
+    }
+  }
+
+  if (!sup_ok){ada88_write(23);} // "Er"
+  delay(2000);          // if something wrong, 2sec LED_ERR on
+
+  for (int i=0; i<3; i++){  // when finished, flash 3times.
+    digitalWrite(LED_ERR, LOW);
+    delay(100);
+    digitalWrite(LED_ERR, HIGH);
+    delay(100);
+  }
+  if (!sup_ok){digitalWrite(LED_ERR, LOW);}
+
+  while(1);
+}
+/*----------------------------------------------------------------------------*/
 //     setup
 /*----------------------------------------------------------------------------*/
 void setup()
@@ -88,8 +142,10 @@ void setup()
   //+++++++++++++++++++++++++++++++++
   //  I2C/device settings
   wireBegin();   // Join I2C bus
-  pca9544_changeI2cBus(3,0);
-  PCA9685_init(0);
+  for (int k=0; k<MAX_DEVICE_MBR3110; k++){
+    pca9544_changeI2cBus(3,k);
+    PCA9685_init(0);
+  }
   ada88_init();
   ada88_write(0); // nothing
 
@@ -130,51 +186,7 @@ void setup()
 
   //+++++++++++++++++++++++++++++++++
   //  setup mode
-  if (setup_mode){
-    int j1_7_sw = digitalRead(SETUP_MODE);
-    //  White LED Check
-    if (!j1_7_sw){
-      ada88_write(2);//"B"
-      delay(200);
-      for(int f=0; f<MAX_EACH_LIGHT; f++){wled.light_led_each(f,0);}
-      digitalWrite(LED_ALL_ON, LOW);  //  All White LED available
-      while(1){
-        for(int l=0; l<2; l++){
-          for(int e=0; e<MAX_EACH_LIGHT; e++){
-            uint16_t bright = (e%2)==0?l:(l+1)%2;
-            wled.light_led_each(e,bright*200);
-          }
-          delay(200);
-        }
-      }
-    }
-
-    // CapSense Setup Mode
-    bool sup_ok = false;
-    ada88_write(21);//"SU"
-    for (int i=0; i<MAX_DEVICE_MBR3110; ++i){
-      pca9544_changeI2cBus(0,i);
-      err = MBR3110_setup(i);
-      if (err){
-        digitalWrite(LED_ERR, LOW); // turn on
-      }
-      else{
-        ada88_write(22); // "Ok"
-        sup_ok = true;
-        break;
-      }
-    }
-    if (!sup_ok){ada88_write(23);} // "Er"
-    delay(2000);          // if something wrong, 2sec LED_ERR on
-    for (int i=0; i<3; i++){  // when finished, flash 3times.
-      digitalWrite(LED_ERR, LOW);
-      delay(100);
-      digitalWrite(LED_ERR, HIGH);
-      delay(100);
-    }
-    if (!sup_ok){digitalWrite(LED_ERR, LOW);}
-    while(1);
-  }
+  if (setup_mode){setup_MBR3110();}
 
   //+++++++++++++++++++++++++++++++++
   //  normal mode
@@ -203,6 +215,7 @@ void setup()
 
   //+++++++++++++++++++++++++++++++++
   //  turn LEDs on
+  wled.clear_all();
   digitalWrite(LED_ALL_ON, LOW);  //  All White LED available
   digitalWrite(LED2, HIGH);
 }
@@ -262,7 +275,7 @@ void loop() {
 
   // for debug
   if (ev[0]._locate_current>=0){
-    ada88_writeNumber(ev[0]._locate_current);
+    ada88_writeNumber(ev[0]._locate_current/10);  // 0-959
   }
   else {
     ada88_writeBit(0);
@@ -296,7 +309,9 @@ void update_touch_target(void){
 
   // new_ev の生成
   for (int e=0; e<MAX_TOUCH_EV; e++){
-    for (int i=start_i; i<MAX_DEVICE_MBR3110*MAX_EACH_SENS; i++){
+    //  タッチを下から上まで回しながら、タッチが連続している箇所を探す
+    int i=start_i;
+    while (i<MAX_DEVICE_MBR3110*MAX_EACH_SENS) {
       int which_dev=i/MAX_EACH_SENS;
       int each_sw=i%MAX_EACH_SENS;
       if (sw[which_dev][each_sw] != 0){
@@ -314,6 +329,7 @@ void update_touch_target(void){
           break;
         }
       }
+      i+=1;
     }
   }
   // ev[]とnew_ev[]を照合して、current/time をコピー
@@ -395,8 +411,8 @@ void generate_midi(int locate){}
 //      Serial MIDI In
 /*----------------------------------------------------------------------------*/
 void receiveMidi(void){
-  MIDI.read();
-  // midiEventPacket_t rx = MIDIUSB.read();
+  //MIDI.read();
+  midiEventPacket_t rx = MidiUSB.read();
 }
 /*----------------------------------------------------------------------------*/
 void handlerNoteOn(byte channel , byte note , byte vel)
@@ -416,6 +432,6 @@ void handlerNoteOff(byte channel , byte note , byte vel)
 void handlerCC(byte channel , byte number , byte value)
 {
   if (channel == 1){
-    setMidiControlChange(number, value);
+    //setMidiControlChange(number, value);
   }
 }
