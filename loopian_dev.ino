@@ -29,27 +29,30 @@
 #define LED_ALL_ON    9    // 12: J4
 #define SETUP_MODE    6    // 9:  Displayの端の端子
 
+constexpr int NOTHING = -1;
+constexpr int COLLATED = -2;  // 照合済
+
 /*----------------------------------------------------------------------------*/
 //     Struct
 /*----------------------------------------------------------------------------*/
 struct TouchEvent {
   int _locate_current;  // -1, 0 - 9599 (16*6*100 - 1)
   int _locate_target;   // -1, 0 - 9599
-  int _first_touch;     // -1, 0 - 7
-  int _last_touch;      // -1, 0 - 7
-  int _last_midi;
+  int _mintch_locate;   // -1, 0 - 47 (8*6 - 1)
+  int _maxtch_locate;   // -1, 0 - 47
+  int _last_midi;       // 0 - 95 (locate/100)
   int _time;
   TouchEvent(void): 
-    _locate_current(-1),
-    _locate_target(-1),
-    _first_touch(-1),
-    _last_touch(-1),
-    _time(-1) {}
+    _locate_current(NOTHING),
+    _locate_target(NOTHING),
+    _mintch_locate(NOTHING),
+    _maxtch_locate(NOTHING),
+    _time(NOTHING) {}
   TouchEvent& operator=(const TouchEvent& te){
     _locate_current = te._locate_current;
     _locate_target = te._locate_target;
-    _first_touch = te._first_touch;
-    _last_touch = te._last_touch;
+    _mintch_locate = te._mintch_locate;
+    _maxtch_locate = te._maxtch_locate;
     _time = te._time;
     return *this;
   }
@@ -251,8 +254,9 @@ void loop() {
         for (int j=0; j<MAX_EACH_SENS; j++){
           if (bptn & (0x0001<<j)){
             sw[i][j] |= 0x0001<<holdtime_cnt;
+            light_someone= true;
           }
-          else {
+          else {  // 立てたビットを全部お掃除しないと Off にならない
             sw[i][j] &= ~(0x0001<<holdtime_cnt);
           }
         }
@@ -302,10 +306,11 @@ long generateTimer( void )
 /*----------------------------------------------------------------------------*/
 //     calcurate finger location
 /*----------------------------------------------------------------------------*/
-void update_touch_target(void){
+int update_touch_target(void){
   TouchEvent new_ev[MAX_TOUCH_EV];
   bool start=false;
   int start_i = 0;
+  int x;
 
   // new_ev の生成
   for (int e=0; e<MAX_TOUCH_EV; e++){
@@ -317,14 +322,14 @@ void update_touch_target(void){
       if (sw[which_dev][each_sw] != 0){
         if (!start){
           start = true;
-          new_ev[e]._first_touch = which_dev*MAX_EACH_SENS + each_sw;
+          new_ev[e]._mintch_locate = which_dev*MAX_EACH_SENS + each_sw;
          }
       }
       else {
         if (start){
           start = false;
-          new_ev[e]._last_touch = which_dev*MAX_EACH_SENS + each_sw - 1;
-          new_ev[e]._locate_target = (new_ev[e]._first_touch + new_ev[e]._last_touch)*100; // *200/2
+          new_ev[e]._maxtch_locate = which_dev*MAX_EACH_SENS + each_sw - 1;
+          new_ev[e]._locate_target = (new_ev[e]._mintch_locate + new_ev[e]._maxtch_locate)*100; // *200/2
           start_i = i+1;
           break;
         }
@@ -334,29 +339,45 @@ void update_touch_target(void){
   }
   // ev[]とnew_ev[]を照合して、current/time をコピー
   constexpr int SAME_LOCATE = 160;  // 100 means next
-  for (int x=0; x<MAX_TOUCH_EV; x++){
+  for (x=0; x<MAX_TOUCH_EV; x++){
     int new_target = new_ev[x]._locate_target;
-    if (new_target == -1){break;}
+    if (new_target == NOTHING){break;}
     bool found = false;
     for (int y=0; y<MAX_TOUCH_EV; y++){
       int crnt_target = ev[y]._locate_target;
-      if (crnt_target == -1){break;}
+      if (crnt_target == NOTHING){break;}
+      if (crnt_target == COLLATED){continue;}
       if ((crnt_target-SAME_LOCATE < new_target) && (new_target < crnt_target+SAME_LOCATE)){
         new_ev[x]._locate_current = ev[y]._locate_current;
         new_ev[x]._time = ev[y]._time;
+        ev[y]._locate_target = COLLATED;
         found = true;
+        if (new_ev[x]._locate_target/100 != ev[y]._last_midi){
+          new_ev[x]._last_midi = new_ev[x]._locate_target/100;
+          generate_midi(1, new_ev[x]._last_midi, ev[y]._last_midi);
+        }
         break;
       }
     }
-    if (!found){
-      new_ev[x]._locate_current = new_ev[x]._locate_target;
+    if (!found){ // on:new, off:old -> note on
+      new_ev[x]._locate_current = new_target;
       new_ev[x]._time = 0;
-      new_ev[x]._last_midi = new_ev[x]._locate_current;
-      generate_midi(new_ev[x]._last_midi);
+      new_ev[x]._last_midi = new_ev[x]._locate_current/100;
+      generate_midi(0, new_ev[x]._last_midi, NOTHING);
+    }
+  }
+  for (int z=0; z<MAX_TOUCH_EV; z++){ // off:new, on:old -> note off
+    int crnt_target = ev[z]._locate_target;
+    if (crnt_target == NOTHING){break;}
+    if (crnt_target == COLLATED){continue;}
+    else {
+      generate_midi(2, ev[z]._last_midi, NOTHING);
+      break;
     }
   }
   // copy
   memcpy(ev,new_ev,sizeof(TouchEvent)*MAX_TOUCH_EV);
+  return x;
 }
 //current を target に近づける
 void interporate_location(long difftm)
@@ -405,7 +426,7 @@ void setMidiControlChange( uint8_t controller, uint8_t value )
 /*----------------------------------------------------------------------------*/
 //     generate midi event
 /*----------------------------------------------------------------------------*/
-void generate_midi(int locate){}
+void generate_midi(int type, int locate, int last_locate){}
 
 /*----------------------------------------------------------------------------*/
 //      Serial MIDI In

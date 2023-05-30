@@ -28,6 +28,8 @@ void WhiteLed::clear_all(void)
 int WhiteLed::gen_lighting_in_loop(long difftm, int (&tchev)[MAX_TOUCH_EV])
 {
   _total_time += difftm;
+  _fade_counter += difftm;
+  if (_fade_counter > FADE_RATE){_fade_counter = 0;}
 
   //for (int x=0; x<MAX_EACH_LIGHT*MAX_DEVICE_MBR3110; x++){_light_lvl[x]=0;}
   memset(&_light_lvl[0], 0, sizeof(int)*MAX_EACH_LIGHT*MAX_DEVICE_MBR3110);
@@ -49,6 +51,8 @@ int WhiteLed::gen_lighting_in_loop(long difftm, int (&tchev)[MAX_TOUCH_EV])
   }
 
   for (int j=0; j<MAX_DEVICE_MBR3110; j++){one_kamaboco(j);}
+  if (_fade_counter == 0){_fade_counter = 1;}
+
   return max_ev;
 }
 void WhiteLed::one_kamaboco(int kamanum)
@@ -58,10 +62,14 @@ void WhiteLed::one_kamaboco(int kamanum)
   pca9544_changeI2cBus(3,kamanum);
 
   for (int i=0; i<MAX_EACH_LIGHT; i++){
-    if (_light_lvl[i+offset_num] > 0){
-      int strength = 20*_light_lvl[i+offset_num];
-      if (strength > 4000){strength = 4000;}
-      light_led_each(i, strength);
+    int x = i+offset_num;
+    if ((_light_lvl[x] > 0) || (_light_lvl_itp[x] > 0)){
+      if (_light_lvl[x]>_light_lvl_itp[x]){_light_lvl_itp[x] = _light_lvl[x];}
+      else if (_fade_counter == 0){
+        // だんだん暗くなるとき
+        _light_lvl_itp[x] = (_light_lvl_itp[x]-_light_lvl[x])*3/4 + _light_lvl[x];
+      }
+      light_led_each(i, _light_lvl_itp[x]*20);
     }
     else {
       // 背景で薄く光っている
@@ -72,9 +80,10 @@ void WhiteLed::one_kamaboco(int kamanum)
   }
   pca9544_changeI2cBus(1,kamanum); // 別のI2Cバスに変えないと、他のkamanumのときに上書きされてしまう
 }
-void WhiteLed::light_led_each(int num, uint16_t strength){ // strength=0-4095
+void WhiteLed::light_led_each(const int num, uint16_t strength){ // strength=0-4095
   int err;
   uint8_t adrs = num * 4 + 0x06;
+  if (strength > 4000){strength = 4000;}
 	err = PCA9685_write( 0, adrs, 0 );          // ONはtime=0
 	err = PCA9685_write( 0, adrs+1, 0 );        // ONはtime=0
 	err = PCA9685_write( 0, adrs+2, (uint8_t)(strength & 0x00ff) );// OFF 0-4095 (0-0x0fff) の下位8bit
