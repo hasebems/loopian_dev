@@ -47,12 +47,14 @@ struct TouchEvent {
     _locate_target(NOTHING),
     _mintch_locate(NOTHING),
     _maxtch_locate(NOTHING),
+    _last_midi(NOTHING),
     _time(NOTHING) {}
   TouchEvent& operator=(const TouchEvent& te){
     _locate_current = te._locate_current;
     _locate_target = te._locate_target;
     _mintch_locate = te._mintch_locate;
     _maxtch_locate = te._maxtch_locate;
+    _last_midi = te._last_midi;
     _time = te._time;
     return *this;
   }
@@ -352,8 +354,8 @@ int update_touch_target(void){
         new_ev[x]._time = ev[y]._time;
         ev[y]._locate_target = COLLATED;
         found = true;
-        if (new_ev[x]._locate_target/100 != ev[y]._last_midi){
-          new_ev[x]._last_midi = new_ev[x]._locate_target/100;
+        new_ev[x]._last_midi = new_ev[x]._locate_target/100;
+        if (new_ev[x]._last_midi != ev[y]._last_midi){
           generate_midi(1, new_ev[x]._last_midi, ev[y]._last_midi);
         }
         break;
@@ -376,7 +378,8 @@ int update_touch_target(void){
     }
   }
   // copy
-  memcpy(ev,new_ev,sizeof(TouchEvent)*MAX_TOUCH_EV);
+  //memcpy(ev,new_ev,sizeof(TouchEvent)*MAX_TOUCH_EV);
+  for (int c=0; c<MAX_TOUCH_EV; c++){ev[c] = new_ev[c];}
   return x;
 }
 //current を target に近づける
@@ -400,7 +403,7 @@ void interporate_location(long difftm)
 /*----------------------------------------------------------------------------*/
 //     MIDI Out
 /*----------------------------------------------------------------------------*/
-void setMidiNoteOn( uint8_t note, uint8_t vel )
+void setMidiNoteOn(uint8_t note, uint8_t vel)
 {
   //MIDI.sendNoteOn(note, vel, 1);
   midiEventPacket_t event = {0x09, 0x90, note, vel};
@@ -408,7 +411,7 @@ void setMidiNoteOn( uint8_t note, uint8_t vel )
   MidiUSB.flush();
 }
 /*----------------------------------------------------------------------------*/
-void setMidiNoteOff( uint8_t note, uint8_t vel )
+void setMidiNoteOff(uint8_t note)
 {
   //MIDI.sendNoteOff(note, vel, 1);
   midiEventPacket_t event = {0x09, 0x90, note, 0};
@@ -416,7 +419,7 @@ void setMidiNoteOff( uint8_t note, uint8_t vel )
   MidiUSB.flush();
 }
 /*----------------------------------------------------------------------------*/
-void setMidiControlChange( uint8_t controller, uint8_t value )
+void setMidiControlChange(uint8_t controller, uint8_t value)
 {
   //MIDI.sendControlChange(controller, value, 1);
   midiEventPacket_t event = {0x0b, 0xb0, controller, value};
@@ -426,7 +429,23 @@ void setMidiControlChange( uint8_t controller, uint8_t value )
 /*----------------------------------------------------------------------------*/
 //     generate midi event
 /*----------------------------------------------------------------------------*/
-void generate_midi(int type, int locate, int last_locate){}
+void generate_midi(int type, int locate, int last_locate){
+  switch(type){
+    case 0:{
+      setMidiNoteOn(locate+60, 100);
+      break;
+    }
+    case 1:{
+      setMidiNoteOn(locate+60, 100);
+      setMidiNoteOff(last_locate+60);
+      break;
+    }
+    case 2:{
+      setMidiNoteOff(locate+60);
+      break;
+    }
+  }
+}
 
 /*----------------------------------------------------------------------------*/
 //      Serial MIDI In
