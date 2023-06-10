@@ -316,7 +316,7 @@ int update_touch_target(void){
 
   // new_ev の生成
   for (int e=0; e<MAX_TOUCH_EV; e++){
-    //  タッチを下から上まで回しながら、タッチが連続している箇所を探す
+    //  下から上まで端子の状態を走査しながら、タッチされた端子が連続している箇所を探す
     int i=start_i;
     while (i<MAX_DEVICE_MBR3110*MAX_EACH_SENS) {
       int which_dev=i/MAX_EACH_SENS;
@@ -339,8 +339,8 @@ int update_touch_target(void){
       i+=1;
     }
   }
-  // ev[]とnew_ev[]を照合して、current/time をコピー
-  constexpr int SAME_LOCATE = 160;  // 100 means next
+  // ev[]とnew_ev[]を照合して、Note Event を生成
+  constexpr int SAME_FINGER = 160;  // 100 means next
   for (x=0; x<MAX_TOUCH_EV; x++){
     int new_target = new_ev[x]._locate_target;
     if (new_target == NOTHING){break;}
@@ -349,7 +349,7 @@ int update_touch_target(void){
       int crnt_target = ev[y]._locate_target;
       if (crnt_target == NOTHING){break;}
       if (crnt_target == COLLATED){continue;}
-      if ((crnt_target-SAME_LOCATE < new_target) && (new_target < crnt_target+SAME_LOCATE)){
+      if ((crnt_target-SAME_FINGER < new_target) && (new_target < crnt_target+SAME_FINGER)){
         new_ev[x]._locate_current = ev[y]._locate_current;
         new_ev[x]._time = ev[y]._time;
         ev[y]._locate_target = COLLATED;
@@ -372,14 +372,11 @@ int update_touch_target(void){
     int crnt_target = ev[z]._locate_target;
     if (crnt_target == NOTHING){break;}
     if (crnt_target == COLLATED){continue;}
-    else {
-      generate_midi(2, ev[z]._last_midi, NOTHING);
-      break;
-    }
+    else {generate_midi(2, ev[z]._last_midi, NOTHING);}
   }
   // copy
-  //memcpy(ev,new_ev,sizeof(TouchEvent)*MAX_TOUCH_EV);
-  for (int c=0; c<MAX_TOUCH_EV; c++){ev[c] = new_ev[c];}
+  memcpy(ev,new_ev,sizeof(TouchEvent)*MAX_TOUCH_EV);
+  //for (int c=0; c<MAX_TOUCH_EV; c++){ev[c] = new_ev[c];}
   return x;
 }
 //current を target に近づける
@@ -430,18 +427,19 @@ void setMidiControlChange(uint8_t controller, uint8_t value)
 //     generate midi event
 /*----------------------------------------------------------------------------*/
 void generate_midi(int type, int locate, int last_locate){
+  constexpr int CHECK_NOTE = 0;
   switch(type){
     case 0:{
-      setMidiNoteOn(locate+60, 100);
+      setMidiNoteOn(locate+CHECK_NOTE, 100);
       break;
     }
     case 1:{
-      setMidiNoteOn(locate+60, 100);
-      setMidiNoteOff(last_locate+60);
+      setMidiNoteOn(locate+CHECK_NOTE, 100);
+      setMidiNoteOff(last_locate+CHECK_NOTE);
       break;
     }
     case 2:{
-      setMidiNoteOff(locate+60);
+      setMidiNoteOff(locate+CHECK_NOTE);
       break;
     }
   }
