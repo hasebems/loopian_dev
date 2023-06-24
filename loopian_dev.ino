@@ -33,6 +33,13 @@ constexpr int NOTHING = -1;
 constexpr int COLLATED = -2;  // 照合済
 
 /*----------------------------------------------------------------------------*/
+//     Parameter
+/*----------------------------------------------------------------------------*/
+constexpr int LED_CHASE_SPEED = 10; // locate diff / 2msec
+constexpr int SAME_FINGER = 210;  // 100 means next value (200means next sensor)/10msec
+                                  // 同じ指とみなす速さ
+
+/*----------------------------------------------------------------------------*/
 //     Struct
 /*----------------------------------------------------------------------------*/
 struct TouchEvent {
@@ -186,7 +193,7 @@ void setup()
 
   //+++++++++++++++++++++++++++++++++
   //  local variables
-  uint16_t errNum = 0;
+  uint16_t errBit = 0;
   int err;
 
   //+++++++++++++++++++++++++++++++++
@@ -201,16 +208,14 @@ void setup()
       err = MBR3110_init(i);
       if (err){
         availableEachDevice[i] = false;
-        errNum += 0x0001<<i;
+        errBit += 0x0001<<i;
       }
     }
-    if (errNum){
-      //  if err, stop 5sec.
-      digitalWrite(LED_ERR, HIGH);
-      ada88_writeBit(errNum);
-      delay(5000);  //  5sec LED_ERR on
-      digitalWrite(LED_ERR, LOW);
-    }
+    //  if err, stop 3sec.
+    digitalWrite(LED_ERR, HIGH);
+    ada88_writeBit(~errBit);
+    delay(3000);  //  3sec LED_ERR on
+    digitalWrite(LED_ERR, LOW);
   }
 
   //+++++++++++++++++++++++++++++++++
@@ -340,7 +345,6 @@ int update_touch_target(void){
     }
   }
   // ev[]とnew_ev[]を照合して、Note Event を生成
-  constexpr int SAME_FINGER = 160;  // 100 means next
   for (x=0; x<MAX_TOUCH_EV; x++){
     int new_target = new_ev[x]._locate_target;
     if (new_target == NOTHING){break;}
@@ -382,16 +386,15 @@ int update_touch_target(void){
 //current を target に近づける
 void interporate_location(long difftm)
 {
-  constexpr int RATE = 5; // locate diff / 2msec
   for (int i=0; i<MAX_TOUCH_EV; i++){
     int target = ev[i]._locate_target;
     if (target==-1){break;}
     int diff = target - ev[i]._locate_current;
     if (diff>0){
-      diff = difftm*RATE>diff? diff:difftm*RATE;
+      diff = difftm*LED_CHASE_SPEED>diff? diff:difftm*LED_CHASE_SPEED;
     }
     else if (diff<0){
-      diff = difftm*RATE>(-diff)? diff:-difftm*RATE;
+      diff = difftm*LED_CHASE_SPEED>(-diff)? diff:-difftm*LED_CHASE_SPEED;
     }
     ev[i]._locate_current += diff;
     ev[i]._time += difftm;
