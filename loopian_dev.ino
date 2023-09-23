@@ -87,7 +87,7 @@ int holdtime_cnt = 0; // 指を離したときの感度を弱めに（反応を�
 /*----------------------------------------------------------------------------*/
 //     CY8CMBR3110 setup mode / check White LED
 /*----------------------------------------------------------------------------*/
-void setup_MBR3110(void)
+void check_and_setup_board(void)
 {
   int err;
   int j1_7_sw = digitalRead(SETUP_MODE);
@@ -106,7 +106,7 @@ void setup_MBR3110(void)
         }
         delay(200);
       }
-    }
+    } //  無限ループ
   }
 
   // CapSense Setup Mode
@@ -198,7 +198,8 @@ void setup()
 
   //+++++++++++++++++++++++++++++++++
   //  setup mode
-  if (setup_mode){setup_MBR3110();}
+  if (setup_mode){check_and_setup_board();}
+  //  戻ってこない
 
   //+++++++++++++++++++++++++++++++++
   //  normal mode
@@ -313,11 +314,11 @@ long generateTimer( void )
 /*----------------------------------------------------------------------------*/
 //     calcurate finger location
 /*----------------------------------------------------------------------------*/
-int update_touch_target(void){
-  TouchEvent new_ev[MAX_TOUCH_EV];
+// 連続するタッチオンの検出
+void extract_finger(TouchEvent (&new_ev)[MAX_TOUCH_EV])
+{
   bool start=false;
   int start_i = 0;
-  int x;
 
   // new_ev の生成
   for (int e=0; e<MAX_TOUCH_EV; e++){
@@ -343,9 +344,22 @@ int update_touch_target(void){
       }
       i+=1;
     }
+    if (start){ // 最後のセンサ
+      new_ev[e]._maxtch_locate = MAX_DEVICE_MBR3110*MAX_EACH_SENS - 1;
+      new_ev[e]._locate_target = (new_ev[e]._mintch_locate + new_ev[e]._maxtch_locate)*100; // *200/2
+    }
   }
+}
+int update_touch_target(void)
+{
+  int target_num = 0;
+  TouchEvent new_ev[MAX_TOUCH_EV];
+
+  // 指と判断できるイベント抽出
+  extract_finger(new_ev);
+
   // ev[]とnew_ev[]を照合して、Note Event を生成
-  for (x=0; x<MAX_TOUCH_EV; x++){
+  for (int x=0; x<MAX_TOUCH_EV; x++){
     int new_target = new_ev[x]._locate_target;
     if (new_target == NOTHING){break;}
     bool found = false;
@@ -362,6 +376,7 @@ int update_touch_target(void){
         if (new_ev[x]._last_midi != ev[y]._last_midi){
           generate_midi(1, new_ev[x]._last_midi, ev[y]._last_midi);
         }
+        target_num = x;
         break;
       }
     }
@@ -381,7 +396,7 @@ int update_touch_target(void){
   // copy
   memcpy(ev,new_ev,sizeof(TouchEvent)*MAX_TOUCH_EV);
   //for (int c=0; c<MAX_TOUCH_EV; c++){ev[c] = new_ev[c];}
-  return x;
+  return target_num;
 }
 //current を target に近づける
 void interporate_location(long difftm)
